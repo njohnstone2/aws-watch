@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-watch
+  
+  SAM Template for aws-watch
+
+Globals:
+  Function:
+    Timeout: 5
+    MemorySize: 128
+
+Resources:
+  AWSWatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Architectures:
+        - x86_64
+      Events:
+        CloudTrailLogs:
+          Type: CloudWatchLogs
+          Properties:
+            LogGroupName: CloudTrailManagementEvents
+            FilterPattern: '{ $.eventSource != "logs.amazonaws.com" && ($.eventName = "Create*" || $.eventName = "Update*" || $.eventName = "Delete*") }'
+      Environment:
+        Variables:
+          SLACK_TOKEN: TestToken
+          SLACK_CHANNEL_ID: MyChannel
+    Metadata:
+      DockerTag: latest
+      DockerContext: ../../.
+      Dockerfile: Dockerfile
+
+Outputs:
+  AWSWatchFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt AWSWatchFunction.Arn
+  AWSWatchFunctionIamRole:
+    Description: "Implicit IAM Role created for AWS Watch function"
+    Value: !GetAtt AWSWatchFunctionRole.Arn
