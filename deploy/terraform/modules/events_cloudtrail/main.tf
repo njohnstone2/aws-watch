@@ -17,7 +17,7 @@ resource "aws_cloudtrail" "management" {
     }
   }
 
-  depends_on = ["aws_s3_bucket_policy.ct_management_logs"]
+  depends_on = [aws_s3_bucket_policy.ct_management_logs]
 }
 
 resource "aws_cloudwatch_log_group" "ct_management_logs" {
