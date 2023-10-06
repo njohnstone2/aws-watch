@@ -18,8 +18,8 @@ cd deploy/sam
 cat >> dev.json << 'END'
 {
   "Parameters": {
-    "SLACK_CHANNEL_ID": "<MY_SLACK_CHANNEL_ID>",
-    "SLACK_TOKEN": "<MY_SLACK_TOKEN>"
+    "LOG_LEVEL": "DEBUG",
+    "REGION": "<ENTER_AWS_REGION>"
   }
 }
 END

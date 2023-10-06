@@ -14,8 +14,8 @@ Create a environment file that contains the slack channel ID and bot token. e.g.
 ```
 {
   "Parameters": {
-    "SLACK_CHANNEL_ID": "A123BCDEFH4",
-    "SLACK_TOKEN": "xoxb-xxxxxxxxxxxx-xxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx"
+    "LOG_LEVEL": "DEBUG",
+    "REGION": "<ENTER_AWS_REGION>"
   }
 }
 ```
