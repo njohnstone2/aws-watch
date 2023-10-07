@@ -33,12 +33,17 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github_ecr
           role-session-name: github
           aws-region: us-east-1
-
-      - name: Ensure tag name is valid
-        run: echo "KO_TAGS=${GITHUB_REF_NAME////-}" >> $KO_TAGS
       
       - name: Log into AWS Public ECR
         run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 
       - name: Build and push Docker image
-        run: make build
+        run: |
+          if [[ "$KO_TAGS" == "main" ]]; then
+            KO_TAGS=latest
+          elif [[ "$KO_TAGS" =~ ^[0-9]+\/merge$ ]]; then
+            KO_TAGS=pr-$(echo "$KO_TAGS" | cut -f1 -d"/")
+          elif [[ "$KO_TAGS" =~ .*"/".* ]]; then
+            KO_TAGS=$(echo "$KO_TAGS" | tr / -)
+          fi
+          make build
