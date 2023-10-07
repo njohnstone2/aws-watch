@@ -8,7 +8,7 @@ on:
     branches: [ "main" ]
 
 env:
-  KO_DOCKER_REPO: public.ecr.aws/b3g7u0g4
+  KO_DOCKER_REPO: public.ecr.aws/njohnstone2
   KO_TAGS: ${{ github.ref_name }}
 
 jobs:
@@ -38,4 +38,12 @@ jobs:
         run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 
       - name: Build and push Docker image
-        run: make build
+        run: |
+          if [[ "$KO_TAGS" == "main" ]]; then
+            KO_TAGS=latest
+          elif [[ "$KO_TAGS" =~ ^[0-9]+\/merge$ ]]; then
+            KO_TAGS=pr-$(echo "$KO_TAGS" | cut -f1 -d"/")
+          elif [[ "$KO_TAGS" =~ .*"/".* ]]; then
+            KO_TAGS=$(echo "$KO_TAGS" | tr / -)
+          fi
+          make build
