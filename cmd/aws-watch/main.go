@@ -25,7 +25,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 		"data":       request.AWSLogs.Data,
 		"log_level":  LOG_LEVEL,
 		"aws_region": AWS_REGION,
-	}).Debug("inputs")
+	}).Info("inputs")
 
 	// fetch secrets
 	secretsClient := NewSecretsClient(AWS_REGION)
