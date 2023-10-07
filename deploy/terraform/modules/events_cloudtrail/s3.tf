@@ -1,5 +1,6 @@
 resource "aws_s3_bucket" "ct_management_logs" {
-  bucket = "cloudtrail-management-events-${var.aws_account_id}"
+  bucket        = "cloudtrail-management-events-${var.aws_account_id}"
+  force_destroy = true
 
   tags = {
     Name = "cloudtrail-management-events-${var.aws_account_id}"

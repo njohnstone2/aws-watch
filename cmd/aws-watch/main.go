@@ -11,19 +11,39 @@ import (
 	"github.com/slack-go/slack"
 )
 
+const (
+	secret_slack_token      = "slack_token"
+	secret_slack_channel_id = "slack_channel_id"
+)
+
 func handler(request events.CloudwatchLogsEvent) error {
 	setLogger()
-
-	SLACK_TOKEN := os.Getenv("SLACK_TOKEN")
-	SLACK_CHANNEL_ID := os.Getenv("SLACK_CHANNEL_ID")
 	LOG_LEVEL := os.Getenv("LOG_LEVEL")
+	AWS_REGION := os.Getenv("REGION")
 
 	log.WithFields(log.Fields{
-		"token":      SLACK_TOKEN,
-		"channel_id": SLACK_CHANNEL_ID,
 		"data":       request.AWSLogs.Data,
 		"log_level":  LOG_LEVEL,
-	}).Debug("inputs")
+		"aws_region": AWS_REGION,
+	}).Info("inputs")
+
+	// fetch secrets
+	secretsClient := NewSecretsClient(AWS_REGION)
+
+	slackToken, err := secretsClient.GetAwsSecret(secret_slack_token)
+	if err != nil {
+		log.WithError(err).Error("failed_to_get_secret")
+	}
+
+	slackChannelId, channelErr := secretsClient.GetAwsSecret(secret_slack_channel_id)
+	if err != nil {
+		log.WithError(channelErr).Error("failed_to_get_secret")
+	}
+
+	log.WithFields(log.Fields{
+		"token":      slackToken,
+		"channel_id": slackChannelId,
+	}).Debug("secrets")
 
 	parsed, err := request.AWSLogs.Parse()
 	if err != nil {
@@ -44,7 +64,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 			}
 
 			msg := buildMessage(event)
-			pErr := slackPost(SLACK_TOKEN, SLACK_CHANNEL_ID, msg)
+			pErr := slackPost(slackToken, slackChannelId, msg)
 			if pErr != nil {
 				log.WithError(pErr).Error("failed_post_to_slack")
 				return pErr

@@ -9,8 +9,8 @@ resource "aws_lambda_function" "main" {
 
   environment {
     variables = {
-      SLACK_TOKEN      = "" // Warning: this is for example purposes only. Some form of secrets manager solution should be used (e.g. AWS Secrets Manager, SOPS, etc)
-      SLACK_CHANNEL_ID = ""
+      LOG_LEVEL = "info"
+      REGION = var.aws_region
     }
   }
 }

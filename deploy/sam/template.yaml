@@ -25,8 +25,8 @@ Resources:
             FilterPattern: '{ $.eventSource != "logs.amazonaws.com" && ($.eventName = "Create*" || $.eventName = "Update*" || $.eventName = "Delete*") }'
       Environment:
         Variables:
-          SLACK_TOKEN: TestToken
-          SLACK_CHANNEL_ID: MyChannel
+          LOG_LEVEL: INFO
+          REGION: us-east-1
     Metadata:
       DockerTag: latest
       DockerContext: ../../.
