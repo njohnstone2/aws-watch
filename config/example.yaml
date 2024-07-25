@@ -1,0 +1,23 @@
+subscribers:
+  - id: team-a
+    name: Team A
+    notifiers:
+      grafana-oncall:
+        enabled: true
+        webhook-url: <WEBHOOK_URL>
+        sources:
+          - iam
+      slack:
+        enabled: true
+        channel-id: <CHANNEL_ID>
+        sources:
+          - ec2
+          - rds
+  - id: team-b
+    name: Team B
+    notifiers:
+      slack:
+        enabled: true
+        channel-id: <CHANNEL_ID>
+        sources:
+          - ec2

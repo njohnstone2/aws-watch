@@ -5,3 +5,6 @@ cloudwatch_log_group_name = "CloudTrailManagementEvents"
 
 event_forwarding_enabled  = true
 events_cloudtrail_enabled = true
+
+subscriber_teams   = ["teamA", "teamB"]
+s3_filename_config = "config.yaml"
