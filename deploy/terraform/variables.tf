@@ -69,3 +69,13 @@ variable "events_cloudtrail_enabled" {
   description = "Whether the cloudtrail management event resources should be created"
   default     = false
 }
+
+variable "subscriber_teams" {
+  type        = list(string)
+  description = "List of team identifiers"
+}
+
+variable "s3_filename_config" {
+  type        = string
+  description = "S3 filename for aws-watch config"
+}

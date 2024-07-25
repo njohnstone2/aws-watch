@@ -2,30 +2,43 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/slack-go/slack"
 )
 
 const (
-	secret_slack_token      = "slack_token"
-	secret_slack_channel_id = "slack_channel_id"
+	secret_slack_token = "slack_token"
 )
 
 func handler(request events.CloudwatchLogsEvent) error {
-	setLogger()
 	LOG_LEVEL := os.Getenv("LOG_LEVEL")
 	AWS_REGION := os.Getenv("REGION")
+	S3_BUCKET_NAME := os.Getenv("S3_BUCKET_NAME") // "aws-watch-jcpvr1prfgcqtvy9"
+	S3_FILENAME := os.Getenv("S3_FILENAME")       // "config.yaml"
+	setLogger(LOG_LEVEL)
 
 	log.WithFields(log.Fields{
 		"data":       request.AWSLogs.Data,
 		"log_level":  LOG_LEVEL,
 		"aws_region": AWS_REGION,
 	}).Info("inputs")
+
+	// Load Subscriber Configuration
+	c, cErr := ReadConfig(S3_BUCKET_NAME, S3_FILENAME, AWS_REGION)
+	if cErr != nil {
+		log.WithError(cErr).Error("failed_to_load_config")
+	}
+
+	if len(c.Subscribers) == 0 {
+		log.Fatal("No subscribers found. Check config file exists.")
+	}
 
 	// fetch secrets
 	secretsClient := NewSecretsClient(AWS_REGION)
@@ -35,15 +48,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 		log.WithError(err).Error("failed_to_get_secret")
 	}
 
-	slackChannelId, channelErr := secretsClient.GetAwsSecret(secret_slack_channel_id)
-	if err != nil {
-		log.WithError(channelErr).Error("failed_to_get_secret")
-	}
-
-	log.WithFields(log.Fields{
-		"token":      slackToken,
-		"channel_id": slackChannelId,
-	}).Debug("secrets")
+	oncallClient := NewGrafanaOncallClient()
 
 	parsed, err := request.AWSLogs.Parse()
 	if err != nil {
@@ -63,11 +68,55 @@ func handler(request events.CloudwatchLogsEvent) error {
 				return err
 			}
 
-			msg := buildMessage(event)
-			pErr := slackPost(slackToken, slackChannelId, msg)
-			if pErr != nil {
-				log.WithError(pErr).Error("failed_post_to_slack")
-				return pErr
+			// Iterate over configured subscribers
+			for _, s := range c.Subscribers {
+				if sliceContains(s.Notifiers.GrafanaOncall.Sources, event.EventSource) {
+					log.WithFields(log.Fields{
+						"team":   s.Name,
+						"source": event.EventSource,
+					}).Debug("Posting event to Grafana Oncall")
+
+					msg, mErr := oncallClient.buildMessage(event)
+					uid := uuid.New()
+					alert := &Alert{
+						UID:     uid.String(),
+						Title:   fmt.Sprintf("Audit Event (%s)", event.EventSource),
+						State:   "alerting",
+						Message: msg,
+					}
+					if mErr != nil {
+						log.WithError(mErr).WithFields(log.Fields{
+							"team":        s.Name,
+							"source":      event.EventSource,
+							"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
+						}).Error("failed_to_create_grafana_oncall_message")
+						continue
+					}
+
+					err := oncallClient.CreateAlert(s.Notifiers.GrafanaOncall.WebhookUrl, alert)
+					if err != nil {
+						log.WithError(err).WithFields(log.Fields{
+							"team":        s.Name,
+							"source":      event.EventSource,
+							"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
+						}).Error("failed_post_to_grafana_oncall")
+						continue
+					}
+				}
+
+				if sliceContains(s.Notifiers.Slack.Sources, event.EventSource) {
+					log.WithFields(log.Fields{
+						"team":   s.Name,
+						"source": event.EventSource,
+					}).Debug("Posting event to Slack")
+
+					msg := buildMessage(event)
+					pErr := slackPost(slackToken, s.Notifiers.Slack.ChannelId, msg)
+					if pErr != nil {
+						log.WithError(pErr).Error("failed_post_to_slack")
+						return pErr
+					}
+				}
 			}
 		}
 	}
@@ -79,11 +128,10 @@ func main() {
 	lambda.Start(handler)
 }
 
-func setLogger() {
+func setLogger(level string) {
 	log.SetFormatter(&log.JSONFormatter{})
-	loglevel := os.Getenv("LOG_LEVEL")
 
-	switch strings.ToUpper(loglevel) {
+	switch strings.ToUpper(level) {
 	case "TRACE":
 		log.SetLevel(log.TraceLevel)
 	case "DEBUG":
@@ -127,4 +175,14 @@ func slackPost(token, channelId string, msg slack.Message) error {
 	}).Info("Message successfully sent to channel")
 
 	return nil
+}
+
+// checks for a prefix match in a slice of strings or is a wildcard match
+func sliceContains(s []string, e string) bool {
+	for _, a := range s {
+		if strings.HasPrefix(e, a) || a == "*" {
+			return true
+		}
+	}
+	return false
 }
