@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,8 +21,8 @@ const (
 func handler(request events.CloudwatchLogsEvent) error {
 	LOG_LEVEL := os.Getenv("LOG_LEVEL")
 	AWS_REGION := os.Getenv("REGION")
-	S3_BUCKET_NAME := os.Getenv("S3_BUCKET_NAME") // "aws-watch-jcpvr1prfgcqtvy9"
-	S3_FILENAME := os.Getenv("S3_FILENAME")       // "config.yaml"
+	S3_BUCKET_NAME := os.Getenv("S3_BUCKET_NAME")
+	S3_FILENAME := os.Getenv("S3_FILENAME")
 	setLogger(LOG_LEVEL)
 
 	log.WithFields(log.Fields{
@@ -30,8 +31,13 @@ func handler(request events.CloudwatchLogsEvent) error {
 		"aws_region": AWS_REGION,
 	}).Info("inputs")
 
+	ctx := context.Background()
+
 	// Load Subscriber Configuration
-	c, cErr := ReadConfig(S3_BUCKET_NAME, S3_FILENAME, AWS_REGION)
+	configClient, err := NewConfigClient(ctx, AWS_REGION)
+	log.WithError(err).Error("failed_to_init_s3_client")
+
+	c, cErr := configClient.LoadConfig(ctx, S3_BUCKET_NAME, S3_FILENAME)
 	if cErr != nil {
 		log.WithError(cErr).Error("failed_to_load_config")
 	}
