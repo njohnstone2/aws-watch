@@ -20,6 +20,11 @@ resource "aws_iam_role" "execution_role" {
 EOF
 }
 
+resource "aws_iam_role_policy_attachment" "s3_readonly" {
+  role       = aws_iam_role.execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
 resource "aws_iam_role_policy_attachment" "cloudwatch_logs" {
   role       = aws_iam_role.execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"

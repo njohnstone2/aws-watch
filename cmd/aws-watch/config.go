@@ -1,12 +1,11 @@
 package main
 
 import (
+	"context"
 	"io"
-	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,57 +36,56 @@ type GrafanaOncallConfig struct {
 	Sources    []string `yaml:"sources"`
 }
 
-func NewConfig(path string) (*AppConfig, error) {
-
-	var c = &AppConfig{}
-	config, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	err = yaml.Unmarshal(config, c)
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+type ConfigClient struct {
+	client *s3.Client
 }
 
-func ReadConfig(bucket, filename, region string) (*AppConfig, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(region)},
+func NewConfigClient(ctx context.Context, region string) (*ConfigClient, error) {
+	cfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(region),
 	)
-
-	// sess, err := session.NewSessionWithOptions(session.Options{
-	// 	SharedConfigState: session.SharedConfigEnable, // Must be set to enable
-	// 	Profile:           "default_temp",
-	// })
+	if err != nil {
+		return nil, err
+	}
+	client := s3.NewFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	svc := s3.New(sess)
+	return &ConfigClient{
+		client: client,
+	}, nil
+}
 
-	rawObject, err := svc.GetObject(
-		&s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(filename),
-		})
+type S3GetObjectAPI interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+}
 
+func GetObjectFromS3(ctx context.Context, api S3GetObjectAPI, bucket, key string) ([]byte, error) {
+	object, err := api.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer object.Body.Close()
+
+	return io.ReadAll(object.Body)
+}
+
+func (c *ConfigClient) LoadConfig(ctx context.Context, bucket, filename string) (*AppConfig, error) {
+	content, err := GetObjectFromS3(ctx, c.client, bucket, filename)
 	if err != nil {
 		return nil, err
 	}
 
-	var c = &AppConfig{}
-	body, err := io.ReadAll(rawObject.Body)
+	var cfg = &AppConfig{}
+	err = yaml.Unmarshal(content, cfg)
 	if err != nil {
-		return c, err
+		return cfg, err
 	}
 
-	err = yaml.Unmarshal(body, c)
-	if err != nil {
-		return c, err
-	}
-
-	return c, nil
+	return cfg, nil
 }
