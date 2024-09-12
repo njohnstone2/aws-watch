@@ -35,7 +35,9 @@ func handler(request events.CloudwatchLogsEvent) error {
 
 	// Load Subscriber Configuration
 	configClient, err := NewConfigClient(ctx, AWS_REGION)
-	log.WithError(err).Error("failed_to_init_s3_client")
+	if err != nil {
+		log.WithError(err).Error("failed_to_init_s3_client")
+	}
 
 	c, cErr := configClient.LoadConfig(ctx, S3_BUCKET_NAME, S3_FILENAME)
 	if cErr != nil {
@@ -119,7 +121,9 @@ func handler(request events.CloudwatchLogsEvent) error {
 					msg := buildMessage(event)
 					pErr := slackPost(slackToken, s.Notifiers.Slack.ChannelId, msg)
 					if pErr != nil {
-						log.WithError(pErr).Error("failed_post_to_slack")
+						log.WithFields(log.Fields{
+							"channel_id": s.Notifiers.Slack.ChannelId,
+						}).WithError(pErr).Error("failed_post_to_slack")
 						return pErr
 					}
 				}
