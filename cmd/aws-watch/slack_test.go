@@ -31,7 +31,7 @@ var cloudtrailEvent = CloudtrailEvent{
 func TestBuildMessage(t *testing.T) {
 	t.Run("Build Cloudtrail Message", func(t *testing.T) {
 
-		msg := buildMessage(cloudtrailEvent)
+		msg := buildCloudTrailMessage(cloudtrailEvent)
 
 		assert.Equal(t, len(msg.Blocks.BlockSet), 4)
 		assert.Equal(t, msg.Blocks.BlockSet[0].BlockType(), slack.MBTHeader)
