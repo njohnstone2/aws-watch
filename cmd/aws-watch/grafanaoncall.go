@@ -41,6 +41,17 @@ type GrafanaOncallMessage struct {
 	ResponseElements  interface{}  `json:"responseElements"`
 }
 
+type GrafanaOncallEKSMessage struct {
+	RequestURI     string            `json:"requestURI"`
+	Verb           string            `json:"verb"`
+	User           EKSUser           `json:"user"`
+	SourceIPs      []string          `json:"sourceIPs"`
+	UserAgent      string            `json:"userAgent"`
+	ObjectRef      EKSObjectRef      `json:"objectRef"`
+	ResponseStatus EKSResponseStatus `json:"responseStatus"`
+	StageTimestamp time.Time         `json:"stageTimestamp"`
+}
+
 func (g *GrafanaOncallClient) CreateAlert(url string, a *Alert) error {
 	jsonStr, err := json.Marshal(a)
 	if err != nil {
@@ -67,7 +78,16 @@ func (g *GrafanaOncallClient) CreateAlert(url string, a *Alert) error {
 	return nil
 }
 
-func (g *GrafanaOncallClient) buildMessage(e CloudtrailEvent) (string, error) {
+func (g *GrafanaOncallClient) buildMessage(e Event) (string, error) {
+	switch e.EventSource {
+	case "EKS":
+		return g.buildEKSMessage(*e.EKS)
+	default:
+		return g.buildCloudtrailMessage(*e.Cloudtrail)
+	}
+}
+
+func (g *GrafanaOncallClient) buildCloudtrailMessage(e CloudtrailEvent) (string, error) {
 	msg := &GrafanaOncallMessage{
 		UserIdentity:      e.UserIdentity,
 		EventTime:         e.EventTime,
@@ -80,6 +100,26 @@ func (g *GrafanaOncallClient) buildMessage(e CloudtrailEvent) (string, error) {
 		EventCategory:     e.EventCategory,
 		RequestParameters: e.RequestParameters,
 		ResponseElements:  e.ResponseElements,
+	}
+
+	jsonStr, err := json.Marshal(msg)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonStr), err
+}
+
+func (g *GrafanaOncallClient) buildEKSMessage(e EKSEvent) (string, error) {
+	msg := &GrafanaOncallEKSMessage{
+		RequestURI:     e.RequestURI,
+		Verb:           e.Verb,
+		User:           e.User,
+		SourceIPs:      e.SourceIPs,
+		UserAgent:      e.UserAgent,
+		ObjectRef:      e.ObjectRef,
+		ResponseStatus: e.ResponseStatus,
+		StageTimestamp: e.StageTimestamp,
 	}
 
 	jsonStr, err := json.Marshal(msg)

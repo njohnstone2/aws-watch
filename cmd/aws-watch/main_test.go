@@ -25,7 +25,7 @@ func TestSlackPost_NoAuth(t *testing.T) {
 	t.Run("Slack post invalid auth", func(t *testing.T) {
 		token := "INVALID"
 		channel := "INVALID"
-		message := buildMessage(cloudtrailEvent)
+		message := buildCloudTrailMessage(cloudtrailEvent)
 
 		err := slackPost(token, channel, message)
 		assert.Error(t, err)

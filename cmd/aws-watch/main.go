@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	secret_slack_token = "slack_token"
+	secret_slack_token              = "slack_token"
+	cloudwatch_eks_audit_log_prefix = "kube-apiserver-audit-"
 )
 
 func handler(request events.CloudwatchLogsEvent) error {
@@ -69,11 +70,33 @@ func handler(request events.CloudwatchLogsEvent) error {
 		for _, v := range parsed.LogEvents {
 			log.WithField("data", v.Message).Debug("parsed_message")
 
-			var event CloudtrailEvent
-			err := json.Unmarshal([]byte(v.Message), &event)
-			if err != nil {
-				log.WithError(err).Error("failed_to_unmarshal_event")
-				return err
+			var event Event
+			if strings.HasPrefix(parsed.LogStream, cloudwatch_eks_audit_log_prefix) {
+				eksEvent, eksErr := parseEKSEvent(v)
+				if eksErr != nil {
+					return eksErr
+				}
+
+				event.EventSource = "EKS"
+				event.EKS = eksEvent
+
+				log.WithFields(log.Fields{
+					"source": event.EventSource,
+					"uri":    event.EKS.RequestURI,
+				}).Info("eks_event")
+			} else {
+				ctEvent, ctErr := parseCloudtrailEvent(v)
+				if ctErr != nil {
+					return ctErr
+				}
+
+				event.EventSource = ctEvent.EventSource
+				event.Cloudtrail = ctEvent
+
+				log.WithFields(log.Fields{
+					"source": event.EventSource,
+					"arn":    event.Cloudtrail.UserIdentity.Arn,
+				}).Info("cloudtrail_event")
 			}
 
 			// Iterate over configured subscribers
@@ -136,6 +159,26 @@ func handler(request events.CloudwatchLogsEvent) error {
 
 func main() {
 	lambda.Start(handler)
+}
+
+func parseEKSEvent(e events.CloudwatchLogsLogEvent) (*EKSEvent, error) {
+	var event EKSEvent
+	err := json.Unmarshal([]byte(e.Message), &event)
+	if err != nil {
+		return nil, err
+	}
+
+	return &event, nil
+}
+
+func parseCloudtrailEvent(e events.CloudwatchLogsLogEvent) (*CloudtrailEvent, error) {
+	var event CloudtrailEvent
+	err := json.Unmarshal([]byte(e.Message), &event)
+	if err != nil {
+		return nil, err
+	}
+
+	return &event, nil
 }
 
 func setLogger(level string) {
