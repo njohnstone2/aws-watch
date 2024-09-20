@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type GrafanaOncallClient struct {
@@ -25,31 +26,6 @@ type Alert struct {
 	State        string `json:"state"`
 	UpstreamLink string `json:"link_to_upstream_details"`
 	Message      string `json:"message"`
-}
-
-type GrafanaOncallMessage struct {
-	UserIdentity      UserIdentity `json:"userIdentity"`
-	EventTime         time.Time    `json:"eventTime"`
-	EventSource       string       `json:"eventSource"`
-	EventName         string       `json:"eventName"`
-	AwsRegion         string       `json:"awsRegion"`
-	SourceIPAddress   string       `json:"sourceIPAddress"`
-	UserAgent         string       `json:"userAgent"`
-	EventID           string       `json:"eventID"`
-	EventCategory     string       `json:"eventCategory"`
-	RequestParameters interface{}  `json:"requestParameters"`
-	ResponseElements  interface{}  `json:"responseElements"`
-}
-
-type GrafanaOncallEKSMessage struct {
-	RequestURI     string            `json:"requestURI"`
-	Verb           string            `json:"verb"`
-	User           EKSUser           `json:"user"`
-	SourceIPs      []string          `json:"sourceIPs"`
-	UserAgent      string            `json:"userAgent"`
-	ObjectRef      EKSObjectRef      `json:"objectRef"`
-	ResponseStatus EKSResponseStatus `json:"responseStatus"`
-	StageTimestamp time.Time         `json:"stageTimestamp"`
 }
 
 func (g *GrafanaOncallClient) CreateAlert(url string, a *Alert) error {
@@ -78,7 +54,7 @@ func (g *GrafanaOncallClient) CreateAlert(url string, a *Alert) error {
 	return nil
 }
 
-func (g *GrafanaOncallClient) buildMessage(e Event) (string, error) {
+func (g *GrafanaOncallClient) buildMessage(e Event) string {
 	switch e.EventSource {
 	case "EKS":
 		return g.buildEKSMessage(*e.EKS)
@@ -87,45 +63,52 @@ func (g *GrafanaOncallClient) buildMessage(e Event) (string, error) {
 	}
 }
 
-func (g *GrafanaOncallClient) buildCloudtrailMessage(e CloudtrailEvent) (string, error) {
-	msg := &GrafanaOncallMessage{
-		UserIdentity:      e.UserIdentity,
-		EventTime:         e.EventTime,
-		EventSource:       e.EventSource,
-		EventName:         e.EventName,
-		AwsRegion:         e.AwsRegion,
-		SourceIPAddress:   e.SourceIPAddress,
-		UserAgent:         e.UserAgent,
-		EventID:           e.EventID,
-		EventCategory:     e.EventCategory,
-		RequestParameters: e.RequestParameters,
-		ResponseElements:  e.ResponseElements,
-	}
+func (g *GrafanaOncallClient) buildCloudtrailMessage(e CloudtrailEvent) string {
+	requestObj := prettyPrintJson(e.RequestParameters)
 
-	jsonStr, err := json.Marshal(msg)
-	if err != nil {
-		return "", err
-	}
+	msg := fmt.Sprintf("AWS configuration change detected in account `%s` \n- Service: `%s` \n- Username: %s \n- Action: %s \n- Region: %s \n- UserAgent: %s \n- Time: %s \n- Resource: ```%s```",
+		e.UserIdentity.AccountID,
+		e.EventSource,
+		e.UserIdentity.UserName,
+		e.EventName,
+		e.AwsRegion,
+		e.UserAgent,
+		e.EventTime.Format("2006-01-02 15:04:05"),
+		requestObj,
+	)
 
-	return string(jsonStr), err
+	return msg
 }
 
-func (g *GrafanaOncallClient) buildEKSMessage(e EKSEvent) (string, error) {
-	msg := &GrafanaOncallEKSMessage{
-		RequestURI:     e.RequestURI,
-		Verb:           e.Verb,
-		User:           e.User,
-		SourceIPs:      e.SourceIPs,
-		UserAgent:      e.UserAgent,
-		ObjectRef:      e.ObjectRef,
-		ResponseStatus: e.ResponseStatus,
-		StageTimestamp: e.StageTimestamp,
+func (g *GrafanaOncallClient) buildEKSMessage(e EKSEvent) string {
+	msg := fmt.Sprintf("EKS %s change detected in cluster `%s` \n- Username: %s \n- Name: %s \n- Namespace: %s \n- URI: `%s` \n- Time: %s",
+		e.ObjectRef.Resource,
+		e.ClusterName,
+		e.User.Username,
+		e.ObjectRef.Name,
+		e.ObjectRef.Namespace,
+		e.RequestURI,
+		e.RequestReceivedTimestamp.Format("2006-01-02 15:04:05"),
+	)
+
+	if e.RequestObject.Data != nil {
+		requestObj := prettyPrintJson(e.RequestObject.Data)
+
+		msg += fmt.Sprintf("\nRequest:\n```%s```", requestObj)
 	}
 
-	jsonStr, err := json.Marshal(msg)
-	if err != nil {
-		return "", err
+	if e.ResponseObject.Data != nil {
+		responseObj := prettyPrintJson(e.ResponseObject.Data)
+
+		msg += fmt.Sprintf("\nResponse:\n```%s```", responseObj)
 	}
 
-	return string(jsonStr), err
+	return msg
+}
+
+func prettyPrintJson(d interface{}) string {
+	b, err := json.MarshalIndent(d, "", "  ")
+	log.WithError(err).Error("prettyPrintJson() failed to parse object")
+
+	return string(b)
 }
