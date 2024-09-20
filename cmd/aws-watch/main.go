@@ -38,15 +38,19 @@ func handler(request events.CloudwatchLogsEvent) error {
 	configClient, err := NewConfigClient(ctx, AWS_REGION)
 	if err != nil {
 		log.WithError(err).Error("failed_to_init_s3_client")
+		return err
 	}
 
 	c, cErr := configClient.LoadConfig(ctx, S3_BUCKET_NAME, S3_FILENAME)
 	if cErr != nil {
 		log.WithError(cErr).Error("failed_to_load_config")
+		return err
 	}
 
 	if len(c.Subscribers) == 0 {
-		log.Fatal("No subscribers found. Check config file exists.")
+		err := fmt.Errorf("one or more subscribers must be configured")
+		log.WithError(err).Fatal("No subscribers found. Check config file exists.")
+		return err
 	}
 
 	// fetch secrets
@@ -55,6 +59,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 	slackToken, err := secretsClient.GetAwsSecret(secret_slack_token)
 	if err != nil {
 		log.WithError(err).Error("failed_to_get_secret")
+		return err
 	}
 
 	oncallClient := NewGrafanaOncallClient()
@@ -79,6 +84,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 
 				event.EventSource = "EKS"
 				event.EKS = eksEvent
+				event.EKS.ClusterName = getEKSClusterName(parsed.LogGroup)
 
 				log.WithFields(log.Fields{
 					"source": event.EventSource,
@@ -101,13 +107,13 @@ func handler(request events.CloudwatchLogsEvent) error {
 
 			// Iterate over configured subscribers
 			for _, s := range c.Subscribers {
+				log.WithFields(log.Fields{
+					"team":           s.Name,
+					"event_source":   event.EventSource,
+					"oncall_sources": s.Notifiers.GrafanaOncall.Sources,
+				}).Info("Evaluating Subscriber...")
 				if sliceContains(s.Notifiers.GrafanaOncall.Sources, event.EventSource) {
-					log.WithFields(log.Fields{
-						"team":   s.Name,
-						"source": event.EventSource,
-					}).Debug("Posting event to Grafana Oncall")
-
-					msg, mErr := oncallClient.buildMessage(event)
+					msg := oncallClient.buildMessage(event)
 					uid := uuid.New()
 					alert := &Alert{
 						UID:     uid.String(),
@@ -115,14 +121,12 @@ func handler(request events.CloudwatchLogsEvent) error {
 						State:   "alerting",
 						Message: msg,
 					}
-					if mErr != nil {
-						log.WithError(mErr).WithFields(log.Fields{
-							"team":        s.Name,
-							"source":      event.EventSource,
-							"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
-						}).Error("failed_to_create_grafana_oncall_message")
-						continue
-					}
+					log.WithFields(log.Fields{
+						"team":        s.Name,
+						"source":      event.EventSource,
+						"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
+						"msg":         msg,
+					}).Info("Posting event to Grafana Oncall")
 
 					err := oncallClient.CreateAlert(s.Notifiers.GrafanaOncall.WebhookUrl, alert)
 					if err != nil {
@@ -131,8 +135,12 @@ func handler(request events.CloudwatchLogsEvent) error {
 							"source":      event.EventSource,
 							"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
 						}).Error("failed_post_to_grafana_oncall")
-						continue
 					}
+					log.WithFields(log.Fields{
+						"webhook_url": s.Notifiers.GrafanaOncall.WebhookUrl,
+						"source":      event.EventSource,
+						"alert_title": alert.Title,
+					}).Info("Message successfully sent to Grafana Oncall")
 				}
 
 				if sliceContains(s.Notifiers.Slack.Sources, event.EventSource) {
@@ -147,7 +155,6 @@ func handler(request events.CloudwatchLogsEvent) error {
 						log.WithFields(log.Fields{
 							"channel_id": s.Notifiers.Slack.ChannelId,
 						}).WithError(pErr).Error("failed_post_to_slack")
-						return pErr
 					}
 				}
 			}
@@ -238,4 +245,12 @@ func sliceContains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+func getEKSClusterName(s string) string {
+	clusterName := s
+	clusterName = strings.TrimPrefix(clusterName, "/aws/eks/")
+	clusterName = strings.TrimSuffix(clusterName, "/cluster")
+
+	return clusterName
 }

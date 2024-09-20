@@ -23,7 +23,7 @@ func buildMessage(e Event) slack.Message {
 func buildEKSMessage(e EKSEvent) slack.Message {
 
 	// Header Section
-	headerText := slack.NewTextBlockObject("plain_text", ":mag: Audit event detected :mag:", false, false)
+	headerText := slack.NewTextBlockObject("plain_text", fmt.Sprintf("EKS %s change detected in cluster `%s`", e.ObjectRef.Resource, e.ClusterName), false, false)
 	headerSection := slack.NewHeaderBlock(headerText, slack.HeaderBlockOptionBlockID("test_block"))
 
 	if e.User.Username == "" {
@@ -51,25 +51,31 @@ func buildEKSMessage(e EKSEvent) slack.Message {
 	uriText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Request URI:*\n```%s```", e.RequestURI), false, false)
 	uriSection := slack.NewSectionBlock(uriText, nil, nil)
 
-	reqObj := toJsonString(e.RequestObject.Data)
-	log.WithField("data", reqObj).Debug("request_object")
-
-	reqText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Request Object:*\n```%v```", reqObj), false, false)
-	requestSection := slack.NewSectionBlock(reqText, nil, nil)
-
-	responseObject := toJsonString(e.ResponseObject.Data)
-	log.WithField("data", responseObject).Debug("response_object")
-
-	responseText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Response Object:*\n```%v```", responseObject), false, false)
-	responseSection := slack.NewSectionBlock(responseText, nil, nil)
-
 	msg := slack.NewBlockMessage(
 		headerSection,
 		fieldsSection,
 		uriSection,
-		requestSection,
-		responseSection,
 	)
+
+	if e.RequestObject.Data != nil {
+		reqObj := toJsonString(e.RequestObject.Data)
+		log.WithField("data", reqObj).Debug("request_object")
+
+		reqText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Request:*\n```%v```", reqObj), false, false)
+		requestSection := slack.NewSectionBlock(reqText, nil, nil)
+
+		msg.Blocks.BlockSet = append(msg.Blocks.BlockSet, requestSection)
+	}
+
+	if e.ResponseObject.Data != nil {
+		responseObject := toJsonString(e.ResponseObject.Data)
+		log.WithField("data", responseObject).Debug("response_object")
+
+		responseText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Response:*\n```%v```", responseObject), false, false)
+		responseSection := slack.NewSectionBlock(responseText, nil, nil)
+
+		msg.Blocks.BlockSet = append(msg.Blocks.BlockSet, responseSection)
+	}
 
 	return msg
 }
@@ -77,7 +83,7 @@ func buildEKSMessage(e EKSEvent) slack.Message {
 func buildCloudTrailMessage(e CloudtrailEvent) slack.Message {
 
 	// Header Section
-	headerText := slack.NewTextBlockObject("plain_text", ":mag: Audit event detected :mag:", false, false)
+	headerText := slack.NewTextBlockObject("plain_text", fmt.Sprintf("AWS configuration change detected in account '%s'", e.UserIdentity.AccountID), false, false)
 	headerSection := slack.NewHeaderBlock(headerText, slack.HeaderBlockOptionBlockID("test_block"))
 
 	reqParams := toJsonString(e.RequestParameters)

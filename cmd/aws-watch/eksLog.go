@@ -9,6 +9,7 @@ type Event struct {
 }
 
 type EKSEvent struct {
+	ClusterName              string
 	Kind                     string            `json:"kind"`
 	APIVersion               string            `json:"apiVersion"`
 	Level                    string            `json:"level"`
