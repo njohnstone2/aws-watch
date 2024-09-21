@@ -11,8 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
+type SecretsManagerClientInterface interface {
+	GetSecretValue(ctx context.Context, params *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	BatchGetSecretValue(ctx context.Context, params *secretsmanager.BatchGetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.BatchGetSecretValueOutput, error)
+}
+
 type SecretsClient struct {
-	client *secretsmanager.Client
+	client SecretsManagerClientInterface
 }
 
 func NewSecretsClient(region string) *SecretsClient {
