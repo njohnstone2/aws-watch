@@ -9,8 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type GrafanaOncallClient struct {
-	client *http.Client
+	client HTTPClient
 }
 
 func NewGrafanaOncallClient() *GrafanaOncallClient {

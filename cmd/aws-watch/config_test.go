@@ -1,33 +1,124 @@
 package main
 
 import (
+	"context"
+	"strconv"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	ExampleConfigPath = "../../config/example.yaml"
-)
-
-func TestValidateConfig(t *testing.T) {
-	t.Run("Validate Grafana Oncall Config", func(t *testing.T) {
-
-		c, err := NewConfig(ExampleConfigPath)
-
-		assert.NoError(t, err)
-		assert.Equal(t, len(c.Subscribers), 2)
-		assert.Equal(t, c.Subscribers[0].Notifiers.GrafanaOncall.Enabled, true)
-		assert.Equal(t, c.Subscribers[0].Notifiers.GrafanaOncall.WebhookUrl, "http://localhost:8000/asdf")
-		assert.Equal(t, c.Subscribers[0].Notifiers.Slack.Enabled, false)
-	})
+type MockConfigClient struct {
+	GetObjectFunc  func(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
+	LoadConfigFunc func(ctx context.Context, bucket, filename string) (*AppConfig, error)
 }
 
-func TestMissingConfig(t *testing.T) {
-	t.Run("Validate Missing Config", func(t *testing.T) {
+func (m *MockConfigClient) LoadConfig(ctx context.Context, bucket, filename string) (*AppConfig, error) {
+	return m.LoadConfigFunc(ctx, bucket, filename)
+}
 
-		_, err := NewConfig("")
+func TestLoadConfig(t *testing.T) {
 
-		assert.Error(t, err)
-	})
+	cases := []struct {
+		cfgClient MockConfigClient
+		bucket    string
+		key       string
+		expect    *AppConfig
+	}{
+		{
+			cfgClient: MockConfigClient{
+				LoadConfigFunc: func(ctx context.Context, bucket string, filename string) (*AppConfig, error) {
+					return &AppConfig{
+						Subscribers: []Subscriber{
+							{
+								Id:   "teamA",
+								Name: "Team A",
+								Notifiers: Notifiers{
+									GrafanaOncall: GrafanaOncallConfig{
+										Enabled:    true,
+										WebhookUrl: "http://localhost:8080",
+										Sources:    []string{"ec2"},
+									},
+									Slack: SlackConfig{
+										Enabled:   true,
+										Sources:   []string{"iam"},
+										ChannelId: "AAAAAAAAAAA",
+									},
+								},
+							},
+							{
+								Id:   "teamB",
+								Name: "Team B",
+								Notifiers: Notifiers{
+									Slack: SlackConfig{
+										Enabled:   true,
+										Sources:   []string{"*"},
+										ChannelId: "BBBBBBBBBBB",
+									},
+								},
+							},
+						},
+					}, nil
+				},
+			},
+			bucket: "fooBucket",
+			key:    "barKey",
+			expect: &AppConfig{
+				Subscribers: []Subscriber{
+					{
+						Id:   "teamA",
+						Name: "Team A",
+						Notifiers: Notifiers{
+							GrafanaOncall: GrafanaOncallConfig{
+								Enabled:    true,
+								WebhookUrl: "http://localhost:8080",
+								Sources:    []string{"ec2"},
+							},
+							Slack: SlackConfig{
+								Enabled:   true,
+								Sources:   []string{"iam"},
+								ChannelId: "AAAAAAAAAAA",
+							},
+						},
+					},
+					{
+						Id:   "teamB",
+						Name: "Team B",
+						Notifiers: Notifiers{
+							Slack: SlackConfig{
+								Enabled:   true,
+								Sources:   []string{"*"},
+								ChannelId: "BBBBBBBBBBB",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			cfgClient: MockConfigClient{
+				LoadConfigFunc: func(ctx context.Context, bucket string, filename string) (*AppConfig, error) {
+					return &AppConfig{
+						Subscribers: []Subscriber{},
+					}, nil
+				},
+			},
+			bucket: "secondBucket",
+			key:    "secondKey",
+			expect: &AppConfig{
+				Subscribers: []Subscriber{},
+			},
+		},
+	}
+
+	for i, tt := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			ctx := context.Background()
+
+			actual, err := tt.cfgClient.LoadConfig(ctx, tt.bucket, tt.key)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expect, actual)
+		})
+	}
 }

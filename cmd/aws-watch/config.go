@@ -36,8 +36,16 @@ type GrafanaOncallConfig struct {
 	Sources    []string `yaml:"sources"`
 }
 
+type S3Client interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+}
+
+type ConfigClientInterface interface {
+	LoadConfig(ctx context.Context, bucket, filename string) (*AppConfig, error)
+}
+
 type ConfigClient struct {
-	client *s3.Client
+	client S3Client
 }
 
 func NewConfigClient(ctx context.Context, region string) (*ConfigClient, error) {
@@ -58,25 +66,17 @@ func NewConfigClient(ctx context.Context, region string) (*ConfigClient, error) 
 	}, nil
 }
 
-type S3GetObjectAPI interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-}
-
-func GetObjectFromS3(ctx context.Context, api S3GetObjectAPI, bucket, key string) ([]byte, error) {
-	object, err := api.GetObject(ctx, &s3.GetObjectInput{
+func (c *ConfigClient) LoadConfig(ctx context.Context, bucket, filename string) (*AppConfig, error) {
+	object, err := c.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &bucket,
-		Key:    &key,
+		Key:    &filename,
 	})
 	if err != nil {
 		return nil, err
 	}
 	defer object.Body.Close()
 
-	return io.ReadAll(object.Body)
-}
-
-func (c *ConfigClient) LoadConfig(ctx context.Context, bucket, filename string) (*AppConfig, error) {
-	content, err := GetObjectFromS3(ctx, c.client, bucket, filename)
+	content, err := io.ReadAll(object.Body)
 	if err != nil {
 		return nil, err
 	}
