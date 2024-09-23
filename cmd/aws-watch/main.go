@@ -112,7 +112,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 					"event_source":   event.EventSource,
 					"oncall_sources": s.Notifiers.GrafanaOncall.Sources,
 				}).Info("Evaluating Subscriber...")
-				if sliceContains(s.Notifiers.GrafanaOncall.Sources, event.EventSource) {
+				if s.Notifiers.GrafanaOncall.Enabled && sliceContains(s.Notifiers.GrafanaOncall.Sources, event.EventSource) {
 					msg := oncallClient.buildMessage(event)
 					uid := uuid.New()
 					alert := &Alert{
@@ -143,7 +143,7 @@ func handler(request events.CloudwatchLogsEvent) error {
 					}).Info("Message successfully sent to Grafana Oncall")
 				}
 
-				if sliceContains(s.Notifiers.Slack.Sources, event.EventSource) {
+				if s.Notifiers.Slack.Enabled && sliceContains(s.Notifiers.Slack.Sources, event.EventSource) {
 					log.WithFields(log.Fields{
 						"team":   s.Name,
 						"source": event.EventSource,

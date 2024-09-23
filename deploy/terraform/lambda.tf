@@ -12,7 +12,7 @@ resource "aws_lambda_function" "main" {
       LOG_LEVEL      = "info"
       REGION         = var.aws_region
       S3_BUCKET_NAME = aws_s3_bucket.main.id
-      S3_FILENAME    = var.s3_filename_config
+      S3_FILENAME    = var.s3_config_filename
     }
   }
 }

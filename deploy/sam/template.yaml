@@ -7,7 +7,7 @@ Description: >
 
 Globals:
   Function:
-    Timeout: 5
+    Timeout: 15
     MemorySize: 128
 
 Resources:
@@ -27,6 +27,8 @@ Resources:
         Variables:
           LOG_LEVEL: INFO
           REGION: us-east-1
+          S3_BUCKET_NAME: <BUCKET_NAME>
+          S3_FILENAME: config.yaml
     Metadata:
       DockerTag: latest
       DockerContext: ../../.
