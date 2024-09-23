@@ -8,10 +8,82 @@ import (
 	"github.com/slack-go/slack"
 )
 
-func buildMessage(e CloudtrailEvent) slack.Message {
+func buildMessage(e Event) slack.Message {
+	var msg = slack.Message{}
+	switch e.EventSource {
+	case "EKS":
+		msg = buildEKSMessage(*e.EKS)
+	default:
+		msg = buildCloudTrailMessage(*e.Cloudtrail)
+	}
+
+	return msg
+}
+
+func buildEKSMessage(e EKSEvent) slack.Message {
 
 	// Header Section
-	headerText := slack.NewTextBlockObject("plain_text", ":mag: Audit event detected :mag:", false, false)
+	headerText := slack.NewTextBlockObject("plain_text", fmt.Sprintf("EKS %s change detected in cluster `%s`", e.ObjectRef.Resource, e.ClusterName), false, false)
+	headerSection := slack.NewHeaderBlock(headerText, slack.HeaderBlockOptionBlockID("test_block"))
+
+	if e.User.Username == "" {
+		e.User.Username = "N/A"
+	}
+
+	// Fields
+	serviceField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Service:*\n%s", "EKS"), false, false)
+	whenField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Time:*\n%s", e.RequestReceivedTimestamp.Format("2006-01-02 15:04:05")), false, false)
+	sourceIpField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Source IP:*\n%s", e.SourceIPs[0]), false, false)
+	actionField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Action:*\n%s", e.Verb), false, false)
+	agentField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*UserAgent:*\n%s", e.UserAgent), false, false)
+	userField := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Username:*\n%s", e.User.Username), false, false)
+
+	fieldSlice := make([]*slack.TextBlockObject, 0)
+	fieldSlice = append(fieldSlice, serviceField)
+	fieldSlice = append(fieldSlice, whenField)
+	fieldSlice = append(fieldSlice, sourceIpField)
+	fieldSlice = append(fieldSlice, agentField)
+	fieldSlice = append(fieldSlice, actionField)
+	fieldSlice = append(fieldSlice, userField)
+
+	fieldsSection := slack.NewSectionBlock(nil, fieldSlice, nil)
+
+	uriText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Request URI:*\n```%s```", e.RequestURI), false, false)
+	uriSection := slack.NewSectionBlock(uriText, nil, nil)
+
+	msg := slack.NewBlockMessage(
+		headerSection,
+		fieldsSection,
+		uriSection,
+	)
+
+	if e.RequestObject.Data != nil {
+		reqObj := toJsonString(e.RequestObject.Data)
+		log.WithField("data", reqObj).Debug("request_object")
+
+		reqText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Request:*\n```%v```", reqObj), false, false)
+		requestSection := slack.NewSectionBlock(reqText, nil, nil)
+
+		msg.Blocks.BlockSet = append(msg.Blocks.BlockSet, requestSection)
+	}
+
+	if e.ResponseObject.Data != nil {
+		responseObject := toJsonString(e.ResponseObject.Data)
+		log.WithField("data", responseObject).Debug("response_object")
+
+		responseText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("*Response:*\n```%v```", responseObject), false, false)
+		responseSection := slack.NewSectionBlock(responseText, nil, nil)
+
+		msg.Blocks.BlockSet = append(msg.Blocks.BlockSet, responseSection)
+	}
+
+	return msg
+}
+
+func buildCloudTrailMessage(e CloudtrailEvent) slack.Message {
+
+	// Header Section
+	headerText := slack.NewTextBlockObject("plain_text", fmt.Sprintf("AWS configuration change detected in account '%s'", e.UserIdentity.AccountID), false, false)
 	headerSection := slack.NewHeaderBlock(headerText, slack.HeaderBlockOptionBlockID("test_block"))
 
 	reqParams := toJsonString(e.RequestParameters)

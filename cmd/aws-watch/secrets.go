@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	log "github.com/sirupsen/logrus"
 
@@ -10,8 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
+type SecretsManagerClientInterface interface {
+	GetSecretValue(ctx context.Context, params *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	BatchGetSecretValue(ctx context.Context, params *secretsmanager.BatchGetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.BatchGetSecretValueOutput, error)
+}
+
 type SecretsClient struct {
-	client *secretsmanager.Client
+	client SecretsManagerClientInterface
 }
 
 func NewSecretsClient(region string) *SecretsClient {
@@ -41,4 +47,27 @@ func (c *SecretsClient) GetAwsSecret(secretName string) (string, error) {
 
 	// Returns the decrypted secret
 	return *result.SecretString, nil
+}
+
+func (c *SecretsClient) GetAwsSecrets(secrets ...string) (map[string]string, error) {
+	input := &secretsmanager.BatchGetSecretValueInput{
+		SecretIdList: secrets,
+	}
+
+	result, err := c.client.BatchGetSecretValue(context.Background(), input)
+	if err != nil {
+		return map[string]string{}, err
+	}
+
+	if len(result.SecretValues) == 0 {
+		return map[string]string{}, errors.New("no secrets found")
+	}
+
+	var values = make(map[string]string)
+	for _, v := range result.SecretValues {
+		values[*v.Name] = *v.SecretString
+	}
+
+	// Returns the the decrypted secrets as key/value pairs
+	return values, nil
 }
