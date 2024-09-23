@@ -6,4 +6,30 @@ cloudwatch_log_group_name = "CloudTrailManagementEvents"
 event_forwarding_enabled  = true
 events_cloudtrail_enabled = true
 
-s3_filename_config = "config.yaml"
+s3_config_content  = <<EOF
+subscribers:
+  - id: teamA
+    name: Team A
+    notifiers:
+      grafana-oncall:
+        enabled: true
+        webhook-url: http://localhost:8080/integrations/v1/formatted_webhook/ABCDEFGHIJKL1234567890XYZ/
+        sources:
+          - "iam"
+      slack:
+        enabled: true
+        channel-id: AAAAAAAAAAA
+        sources:
+          - "*"
+  - id: teamB
+    name: Team B
+    notifiers:
+      grafana-oncall:
+        enabled: false
+      slack:
+        enabled: true
+        channel-id: BBBBBBBBBBB
+        sources:
+          - "*"
+
+EOF
