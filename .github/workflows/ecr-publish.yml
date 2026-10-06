@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Ko builder
-        uses: imjasonh/setup-ko@v0.6
+        uses: imjasonh/setup-ko@v0.10
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v6
