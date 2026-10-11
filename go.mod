@@ -4,8 +4,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.44
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.21.4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/slack-go/slack v0.12.2
-	github.com/stretchr/testify v1.7.2
+	github.com/slack-go/slack v0.23.1
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.23.1 // indirect
 	github.com/aws/smithy-go v1.15.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -30,4 +30,4 @@ replace gopkg.in/yaml.v2 => gopkg.in/yaml.v2 v2.2.8
 
 module github.com/njohnstone2/aws-watch
 
-go 1.19
+go 1.25
