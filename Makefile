@@ -17,9 +17,15 @@ vulncheck:
 	@govulncheck ./...
 
 build:
-	$(eval BUILD_IMG=$(shell $(WITH_GOFLAGS) KO_DOCKER_REPO="$(KO_DOCKER_REPO)" KO_DEFAULTBASEIMAGE=$(KO_DEFAULTBASEIMAGE) ko build -B github.com/njohnstone2/aws-watch/cmd/aws-watch -t $(KO_TAGS)))
-	$(eval IMG_REPOSITORY=$(shell echo $(BUILD_IMG) | cut -d "@" -f 1 | cut -d ":" -f 1))
-	$(eval IMG_TAG=$(shell echo $(BUILD_IMG) | cut -d "@" -f 1 | cut -d ":" -f 2 -s))
-	$(eval IMG_DIGEST=$(shell echo $(BUILD_IMG) | cut -d "@" -f 2))
+	$(WITH_GOFLAGS) \
+		KO_DEFAULTBASEIMAGE=$(KO_DEFAULTBASEIMAGE) \
+		ko build --local -B github.com/njohnstone2/aws-watch/cmd/aws-watch
+
+# Build and publish the container image.
+publish:
+	$(WITH_GOFLAGS) \
+		KO_DOCKER_REPO="$(KO_DOCKER_REPO)" \
+		KO_DEFAULTBASEIMAGE=$(KO_DEFAULTBASEIMAGE) \
+		ko build -B github.com/njohnstone2/aws-watch/cmd/aws-watch -t $(KO_TAGS)
 
 .PHONY: build test vulncheck
