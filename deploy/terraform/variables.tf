@@ -69,3 +69,14 @@ variable "events_cloudtrail_enabled" {
   description = "Whether the cloudtrail management event resources should be created"
   default     = false
 }
+
+variable "s3_config_filename" {
+  type        = string
+  description = "S3 filename for aws-watch config"
+  default     = "config.yaml"
+}
+
+variable "s3_config_content" {
+  type        = string
+  description = "S3 configuration content for the aws-watch lambda"
+}

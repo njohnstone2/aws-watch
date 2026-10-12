@@ -61,3 +61,7 @@ _temp
 .env
 dev.json
 /aws-watch
+
+dev/
+config/dev.yaml
+*.sh
