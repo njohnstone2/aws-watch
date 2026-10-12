@@ -10,7 +10,7 @@ resource "aws_lambda_function" "main" {
   environment {
     variables = {
       LOG_LEVEL = "info"
-      REGION = var.aws_region
+      REGION    = var.aws_region
     }
   }
 }
